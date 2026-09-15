@@ -1,0 +1,19 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Teacher Dashboard</title><link rel="stylesheet" href="/static/style.css"></head>
+<body class="teacher-page"><main class="teacher-container">
+<header class="teacher-header"><div><h1>Classroom Poll</h1><div class="total-label">Total responses: <strong id="total">0</strong></div></div>
+<div class="teacher-controls"><button id="new-question" class="teacher-action">New question</button><form method="post" action="/teacher/logout"><button class="logout-button" type="submit">Log out</button></form></div></header>
+<section class="chart-card"><h2>Current question</h2><div class="histogram">
+<div class="bar-column"><div class="bar-value" id="value-1">0</div><div class="bar" id="bar-1"></div><div class="bar-label">1</div></div>
+<div class="bar-column"><div class="bar-value" id="value-2">0</div><div class="bar" id="bar-2"></div><div class="bar-label">2</div></div>
+<div class="bar-column"><div class="bar-value" id="value-3">0</div><div class="bar" id="bar-3"></div><div class="bar-label">3</div></div>
+<div class="bar-column"><div class="bar-value" id="value-4">0</div><div class="bar" id="bar-4"></div><div class="bar-label">4</div></div>
+<div class="bar-column"><div class="bar-value" id="value-5">0</div><div class="bar" id="bar-5"></div><div class="bar-label">5</div></div>
+</div></section><section class="history-card"><h2>Previous questions</h2><div id="history">Loading...</div></section></main>
+<script>
+const total=document.getElementById("total"),historyEl=document.getElementById("history");
+function chart(c){let v=[1,2,3,4,5].map(n=>Number(c[String(n)]||0)),max=Math.max(...v,1);v.forEach((x,i)=>{let n=i+1;document.getElementById("value-"+n).textContent=x;document.getElementById("bar-"+n).style.height=(x?Math.max(x/max*260,8):0)+"px"})}
+async function state(){let r=await fetch("/api/teacher/state");if(r.status===401){location="/teacher/login";return}let d=await r.json();total.textContent=d.total;chart(d.counts)}
+async function hist(){let r=await fetch("/api/teacher/history");if(r.status===401){location="/teacher/login";return}let h=await r.json();historyEl.innerHTML=h.map((p,i)=>`<div class="history-row"><strong>Question ${i+1}</strong><span>1: ${p.counts["1"]||0} &nbsp; 2: ${p.counts["2"]||0} &nbsp; 3: ${p.counts["3"]||0} &nbsp; 4: ${p.counts["4"]||0} &nbsp; 5: ${p.counts["5"]||0}</span><span>Total: ${p.total}</span></div>`).join("")||"No previous questions."}
+document.getElementById("new-question").onclick=async()=>{if(!confirm("Start a new question? The current results will be saved in history."))return;let r=await fetch("/api/teacher/new",{method:"POST"});if(r.status===401){location="/teacher/login";return}await state();await hist()};
+state();hist();setInterval(state,1000);
+</script></body></html>
