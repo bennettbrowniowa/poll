@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Classroom Poll</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app">
+  <div id="landing" class="screen">
+    <h1>Classroom Poll</h1>
+    <div class="choice-row">
+      <button class="choice" data-n="1">1</button>
+      <button class="choice" data-n="2">2</button>
+      <button class="choice" data-n="3">3</button>
+      <button class="choice" data-n="4">4</button>
+      <button class="choice" data-n="5">5</button>
+    </div>
+    <p class="hint">Tap a number to vote.</p>
+    <button id="teacherLink" class="teacher-link">Teacher</button>
+  </div>
+
+  <div id="student" class="screen" hidden>
+    <div id="studentMsg">Tap your answer</div>
+    <div class="choice-row">
+      <button class="choice" data-n="1">1</button>
+      <button class="choice" data-n="2">2</button>
+      <button class="choice" data-n="3">3</button>
+      <button class="choice" data-n="4">4</button>
+      <button class="choice" data-n="5">5</button>
+    </div>
+    <div id="thanks" hidden>Recorded ✓</div>
+  </div>
+
+  <div id="teacher" class="screen teacher" hidden>
+    <div class="teacher-head">
+      <h1>Classroom Poll</h1>
+      <button id="newPoll">New question</button>
+    </div>
+    <div class="total" id="total">0 responses</div>
+    <div class="chart" id="chart"></div>
+    <h2>Previous questions</h2>
+    <div id="history"></div>
+  </div>
+</div>
+<script>
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+function show(which) {
+  ["landing","student","teacher"].forEach(x => $("#" + x).hidden = x !== which);
+}
+function renderChart(counts) {
+  const max = Math.max(1, ...Object.values(counts));
+  $("#chart").innerHTML = [1,2,3,4,5].map(n => `
+    <div class="bar-wrap">
+      <div class="bar-count">${counts[n] || 0}</div>
+      <div class="bar" style="height:${Math.max(4, ((counts[n]||0)/max)*260)}px"></div>
+      <div class="bar-label">${n}</div>
+    </div>`).join("");
+}
+async function getState() {
+  const r = await fetch("/api/state");
+  return r.json();
+}
+async function updateTeacher() {
+  const s = await getState();
+  renderChart(s.counts);
+  $("#total").textContent = `${s.total} response${s.total === 1 ? "" : "s"}`;
+}
+async function updateHistory() {
+  const r = await fetch("/api/history");
+  const rows = await r.json();
+  $("#history").innerHTML = rows.slice().reverse().map((p,i) => `
+    <div class="history-row">
+      <span>Question ${rows.length-i}</span>
+      <span>${p.total} response${p.total===1?"":"s"}</span>
+      <span>${[1,2,3,4,5].map(n=>p.counts[n]).join(" · ")}</span>
+    </div>`).join("");
+}
+
+function setupStudent() {
+  show("student");
+  $$("#student .choice").forEach(btn => {
+    btn.onclick = async () => {
+      $$("#student .choice").forEach(b => b.disabled = true);
+      $("#studentMsg").hidden = true;
+      $("#thanks").hidden = false;
+      try {
+        await fetch("/api/vote", {
+          method:"POST", headers:{"Content-Type":"application/json"},
+          body:JSON.stringify({choice:btn.dataset.n})
+        });
+      } finally {
+        setTimeout(() => {
+          $$("#student .choice").forEach(b => b.disabled = false);
+          $("#studentMsg").hidden = false;
+          $("#thanks").hidden = true;
+        }, 350);
+      }
+    };
+  });
+}
+
+$("#teacherLink").onclick = () => {
+  history.replaceState({}, "", "/?teacher");
+  show("teacher");
+  updateTeacher(); updateHistory();
+  setInterval(() => { updateTeacher(); }, 700);
+};
+
+$("#newPoll").onclick = async () => {
+  if (!confirm("Start collecting a new question? The previous results will be preserved.")) return;
+  await fetch("/api/new", {method:"POST"});
+  updateTeacher(); updateHistory();
+};
+
+if (location.search === "?teacher") {
+  show("teacher"); updateTeacher(); updateHistory();
+  setInterval(updateTeacher, 700);
+} else {
+  // The root URL is the student voting screen.
+  setupStudent();
+}
+</script>
+</body>
+</html>
